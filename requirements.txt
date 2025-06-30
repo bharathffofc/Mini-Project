@@ -1,5 +1,1 @@
-fastapi
-uvicorn[standard]
-python-jose
-pydantic
 pymongo
