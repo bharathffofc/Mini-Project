@@ -65,3 +65,42 @@ async def get_all_notes(cur:dict=Depends(current_user)):
         content=j_note.load(note["title"])
         res[note["title"]]={"_id":note["_id"],"title":note["title"],"tags":note["tags"],"path":note["path"],"content":content["content"]}
     return res
+
+@router.get("/get_notes/{tags}",tags=["Notes"])
+async def get_all_notes_by_tags(tags:str,cur:dict=Depends(current_user)):
+    tags=tags.split(",")
+    res={}
+    notes=[serialise_one(note) for note in collection.find({"tags":{"$in":tags}})]
+    for note in notes:
+        j_note=JSONNote()
+        content=j_note.load(note["title"])
+        res[note["title"]]={"_id":note["_id"],"title":note["title"],"tags":note["tags"],"path":note["path"],"content":content["content"]}
+    return res
+
+@router.get("/note/{title}",tags=["Notes"])
+async def get_note_by_title(title:str,cur:dict=Depends(current_user)):
+    note=serialise_one(collection.find_one({"title":title}))
+    res={}
+    j_note=JSONNote()
+    content=j_note.load(title)
+    res[title]={"_id":note["_id"],"title":note["title"],"tags":note["tags"],"path":note["path"],"content":content["content"]}
+    return res
+
+@router.put("/update/{title}",tags=["Notes"])
+async def update_by_title(title:str,note:Note,cur:dict=Depends(current_user)):
+    note=note.dict()
+    collection.update_one({"title":title},{"$set":{"title":note["title"],"tags":note["tags"]}})
+    j_obj=JSONNote()
+    content=j_obj.load(title)
+    content["title"]=note["title"]
+    content["tags"]=note["tags"]
+    content["content"]=note["content"]
+    path=j_obj.save(content)
+    return {f"message":f"content updated in mongoDB and in Path {path}"}
+
+@router.put("/delete/note/{title}",tags=["Notes"])
+async def delete_note_by_title(title:str,cur:dict=Depends(current_user)):
+    collection.delete_one({"title":title})
+    j_obj=JSONNote()
+    path=j_obj.delete(title)
+    return path
