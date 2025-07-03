@@ -49,10 +49,14 @@ async def current_user(token:str=Depends(oauth)):
 @router.post("/create_note",tags=["Notes"])
 async def create_note(note:Note,cur:dict=Depends(current_user)):
     temp=note.dict()
-    j_note=JSONNote()
-    path=j_note.save(temp)
-    collection.insert_one({"title":temp["title"],"tags":temp["tags"],"path":path})
-    return temp
+    temp_note=collection.find_one({"title":temp["title"]})
+    if temp_note:
+        raise HTTPException(status_code=404,detail="Note already exists.")
+    else:
+        j_note=JSONNote()
+        path=j_note.save(temp)
+        collection.insert_one({"title":temp["title"],"tags":temp["tags"],"path":path})
+        return temp
 
 
 @router.get("/get_all_notes",tags=["Notes"])
@@ -75,32 +79,43 @@ async def get_all_notes_by_tags(tags:str,cur:dict=Depends(current_user)):
         j_note=JSONNote()
         content=j_note.load(note["title"])
         res[note["title"]]={"_id":note["_id"],"title":note["title"],"tags":note["tags"],"path":note["path"],"content":content["content"]}
+    if res=={}:
+        raise HTTPException(status_code=404,detail="Invalid tag")
     return res
 
 @router.get("/note/{title}",tags=["Notes"])
 async def get_note_by_title(title:str,cur:dict=Depends(current_user)):
-    note=serialise_one(collection.find_one({"title":title}))
-    res={}
-    j_note=JSONNote()
-    content=j_note.load(title)
-    res[title]={"_id":note["_id"],"title":note["title"],"tags":note["tags"],"path":note["path"],"content":content["content"]}
-    return res
+    try:
+        note=serialise_one(collection.find_one({"title":title}))
+        res={}
+        j_note=JSONNote()
+        content=j_note.load(title)
+        res[title]={"_id":note["_id"],"title":note["title"],"tags":note["tags"],"path":note["path"],"content":content["content"]}
+        return res
+    except TypeError:
+        raise HTTPException(status_code=404, detail="Invalid title")
 
 @router.put("/update/{title}",tags=["Notes"])
 async def update_by_title(title:str,note:Note,cur:dict=Depends(current_user)):
-    note=note.dict()
-    collection.update_one({"title":title},{"$set":{"title":note["title"],"tags":note["tags"]}})
-    j_obj=JSONNote()
-    content=j_obj.load(title)
-    content["title"]=note["title"]
-    content["tags"]=note["tags"]
-    content["content"]=note["content"]
-    path=j_obj.save(content)
-    return {f"message":f"content updated in mongoDB and in Path {path}"}
+    try:
+        note=note.dict()
+        collection.update_one({"title":title},{"$set":{"title":note["title"],"tags":note["tags"]}})
+        j_obj=JSONNote()
+        content=j_obj.load(title)
+        content["title"]=note["title"]
+        content["tags"]=note["tags"]
+        content["content"]=note["content"]
+        path=j_obj.save(content)
+        return {f"message":f"content updated in mongoDB and in Path {path}"}
+    except FileNotFoundError:
+        raise HTTPException(status_code=404,detail="Invalid title")
 
 @router.put("/delete/note/{title}",tags=["Notes"])
 async def delete_note_by_title(title:str,cur:dict=Depends(current_user)):
-    collection.delete_one({"title":title})
-    j_obj=JSONNote()
-    path=j_obj.delete(title)
-    return path
+    try:
+        collection.delete_one({"title":title})
+        j_obj=JSONNote()
+        path=j_obj.delete(title)
+        return path
+    except FileNotFoundError:
+        raise HTTPException(status_code=404,detail="Invalid title")
