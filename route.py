@@ -46,6 +46,23 @@ async def current_user(token:str=Depends(oauth)):
     except JWTError:
         raise HTTPException(status_code=404,detail="Invalid token")
 
+
+@router.delete("/delete_user/{name}",tags=["User"])
+async def delete_user(name:str,cur:dict=Depends(current_user)):
+    try:
+        user=user_collection.find_one_and_delete({"name":name})
+        return serialise_one(user)
+    except TypeError:
+        raise HTTPException(status_code=404,detail="Invalid username.")
+
+@router.put("/update_user/{name}",tags=["User"])
+async def update_user(name:str,user:User,cur:dict=Depends(current_user)):
+    try:
+        user=user_collection.find_one_and_update({"name":name},{"$set":user.dict()})
+        return serialise_one(user)
+    except TypeError:
+        raise HTTPException(status_code=404, detail="Invalid username.")
+
 @router.post("/create_note",tags=["Notes"])
 async def create_note(note:Note,cur:dict=Depends(current_user)):
     temp=note.dict()
@@ -110,7 +127,7 @@ async def update_by_title(title:str,note:Note,cur:dict=Depends(current_user)):
     except FileNotFoundError:
         raise HTTPException(status_code=404,detail="Invalid title")
 
-@router.put("/delete/note/{title}",tags=["Notes"])
+@router.delete("/delete/note/{title}",tags=["Notes"])
 async def delete_note_by_title(title:str,cur:dict=Depends(current_user)):
     try:
         collection.delete_one({"title":title})
