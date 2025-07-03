@@ -30,7 +30,7 @@ class JSONNote(BaseNote):
 
     def save(self,note):
         os.makedirs("C:/Users/Bharath KA/Documents/Mini-Project/JSON_Notes/",exist_ok=True)
-        title="C:/Users/Bharath KA/Documents/Mongo_DB/Practice/mini_project/Notes/"+note["title"]+".json"
+        title="C:/Users/Bharath KA/Documents/Mini-Project/JSON_Notes/"+note["title"]+".json"
         with open(title,"w") as f:
             json.dump(note,f,indent=4)
         return title
