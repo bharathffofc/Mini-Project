@@ -45,3 +45,23 @@ async def current_user(token:str=Depends(oauth)):
         return serialise_one(user)
     except JWTError:
         raise HTTPException(status_code=404,detail="Invalid token")
+
+@router.post("/create_note",tags=["Notes"])
+async def create_note(note:Note,cur:dict=Depends(current_user)):
+    temp=note.dict()
+    j_note=JSONNote()
+    path=j_note.save(temp)
+    collection.insert_one({"title":temp["title"],"tags":temp["tags"],"path":path})
+    return temp
+
+
+@router.get("/get_all_notes",tags=["Notes"])
+async def get_all_notes(cur:dict=Depends(current_user)):
+    notes=collection.find()
+    notes=serialise_many(notes)
+    res={}
+    for note in notes:
+        j_note=JSONNote()
+        content=j_note.load(note["title"])
+        res[note["title"]]={"_id":note["_id"],"title":note["title"],"tags":note["tags"],"path":note["path"],"content":content["content"]}
+    return res
