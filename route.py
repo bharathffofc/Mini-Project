@@ -37,7 +37,7 @@ async def login(form:OAuth2PasswordRequestForm=Depends()):
 
     return {"access_token":access,"token_type":"bearer"}
 
-@auth_router.get("/current_user",tags=["User"])
+@router.get("/current_user",tags=["User"])
 async def current_user(token:str=Depends(oauth)):
     try:
         payload=jwt.decode(token,SECRET_KEY,algorithms=ALGORITHM)
@@ -50,25 +50,19 @@ async def current_user(token:str=Depends(oauth)):
         raise HTTPException(status_code=404,detail="Invalid token")
 
 
-@auth_router.delete("/delete_user/{name}",tags=["User"])
-async def delete_user(name:str):
-    try:
-        user=user_collection.find_one_and_delete({"name":name})
-        return serialise_one(user)
-    except TypeError:
-        raise HTTPException(status_code=404,detail="Invalid username.")
+@router.delete("/delete_user",tags=["User"])
+async def delete_user(cur:dict=Depends(current_user)):
+    user=user_collection.find_one_and_delete({"name":cur["name"]})
+    return serialise_one(user)
 
-@auth_router.put("/update_user/{name}",tags=["User"])
-async def update_user(name:str,user:User):
-    try:
-        user=user_collection.find_one_and_update({"name":name},{"$set":user.dict()})
-        return serialise_one(user)
-    except TypeError:
-        raise HTTPException(status_code=404, detail="Invalid username.")
+@router.put("/update_user",tags=["User"])
+async def update_user(user:User,cur:dict=Depends(current_user)):
+    user=user_collection.find_one_and_update({"name":cur["name"]},{"$set":user.dict()})
+    return serialise_one(user)
 
 @auth_router.get("/get_users",tags=["User"])
 async def get_users():
-    res=[serialise_one(user) for user in user_collection.find()]
+    res=[serialise_one(user) for user in user_collection.find({},{"name":1})]
     if not res:
         raise HTTPException(status_code=404,detail="Users db is empty")
     return res
