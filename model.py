@@ -1,4 +1,4 @@
-from pydantic import BaseModel,EmailStr
+from pydantic import BaseModel,EmailStr,Field
 from abc import ABC,abstractmethod
 import json
 import os
@@ -7,6 +7,7 @@ class User(BaseModel):
     name:str
     password:str
     email:EmailStr
+    deleted:int=Field(default=False)
 
 class Note(BaseModel):
     title:str
@@ -42,6 +43,12 @@ class JSONNote(BaseNote):
         return content
 
     def delete(self,title):
-        title="C:/Users/Bharath KA/Documents/Mini-Project/JSON_Notes/"+title+".json"
-        os.remove(title)
-        return f"File removed at {title}"
+        full_title="C:/Users/Bharath KA/Documents/Mini-Project/JSON_Notes/"+title+".json"
+        with open(full_title,"r") as f:
+            content=json.load(f)
+        os.remove(full_title)
+        os.makedirs("C:/Users/Bharath KA/Documents/Mini-Project/Deleted_Notes/", exist_ok=True)
+        new_title="C:/Users/Bharath KA/Documents/Mini-Project/Deleted_Notes/"+title+".json"
+        with open(new_title,"w") as f:
+            json.dump(content,f,indent=4)
+        return f"File removed at {full_title}"
