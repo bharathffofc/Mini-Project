@@ -4,14 +4,14 @@ from connection import collection,user_collection
 from schema import serialise_one,serialise_many
 from fastapi.security import OAuth2PasswordRequestForm,OAuth2PasswordBearer
 from jose import jwt,JWTError
-from datetime import datetime,timedelta
+from datetime import datetime,timedelta,UTC
 
 oauth=OAuth2PasswordBearer(tokenUrl="/token")
 
 router=APIRouter()
 auth_router=APIRouter(dependencies=[Depends(oauth)])
 
-SECRET_KEY="miniproject"
+SECRET_KEY="mini_project"
 ALGORITHM="HS256"
 ACCESS_TOKEN_EXPIRE=1
 
@@ -19,12 +19,12 @@ ACCESS_TOKEN_EXPIRE=1
 async def create_user(user:User):
     res=user_collection.find({},{"name":1,"email":1})
     for u in res:
-        if u["name"]==user.dict()["name"]:
+        if u["name"]==user.model_dump()["name"]:
             raise HTTPException(status_code=404,detail="User exists")
-        if u["email"]==user.dict()["email"]:
+        if u["email"]==user.model_dump()["email"]:
             raise HTTPException(status_code=404, detail="Two different users cant have same email.")
-    user_collection.insert_one(user.dict())
-    return user.dict()
+    user_collection.insert_one(user.model_dump())
+    return user.model_dump()
 
 @router.post("/token",tags=["User"])
 async def login(form:OAuth2PasswordRequestForm=Depends()):
@@ -32,7 +32,7 @@ async def login(form:OAuth2PasswordRequestForm=Depends()):
     if not user or user["password"]!=form.password:
         raise HTTPException(status_code=404,detail="Invalid credential or user not exists.")
 
-    data={"sub":form.username,"exp":datetime.utcnow()+timedelta(days=ACCESS_TOKEN_EXPIRE)}
+    data={"sub":form.username,"exp":datetime.now(UTC)+timedelta(days=ACCESS_TOKEN_EXPIRE)}
     access=jwt.encode(data,SECRET_KEY,algorithm=ALGORITHM)
 
     return {"access_token":access,"token_type":"bearer"}
@@ -57,7 +57,7 @@ async def delete_user(cur:dict=Depends(current_user)):
 
 @router.put("/update_user",tags=["User"])
 async def update_user(user:User,cur:dict=Depends(current_user)):
-    user=user_collection.find_one_and_update({"name":cur["name"]},{"$set":user.dict()})
+    user=user_collection.find_one_and_update({"name":cur["name"]},{"$set":user.model_dump()})
     return serialise_one(user)
 
 @auth_router.get("/get_users",tags=["User"])
@@ -69,7 +69,7 @@ async def get_users():
 
 @auth_router.post("/create_note",tags=["Notes"])
 async def create_note(note:Note):
-    temp=note.dict()
+    temp=note.model_dump()
     temp_note=collection.find_one({"title":temp["title"]})
     if temp_note:
         raise HTTPException(status_code=404,detail="Note already exists.")
@@ -119,7 +119,7 @@ async def get_note_by_title(title:str):
 @auth_router.put("/update/{title}",tags=["Notes"])
 async def update_by_title(title:str,note:Note):
     try:
-        note=note.dict()
+        note=note.model_dump()
         collection.update_one({"title":title},{"$set":{"title":note["title"],"tags":note["tags"]}})
         j_obj=JSONNote()
         content=j_obj.load(title)
