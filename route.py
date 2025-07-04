@@ -6,9 +6,10 @@ from fastapi.security import OAuth2PasswordRequestForm,OAuth2PasswordBearer
 from jose import jwt,JWTError
 from datetime import datetime,timedelta
 
-router=APIRouter()
-
 oauth=OAuth2PasswordBearer(tokenUrl="/token")
+
+router=APIRouter()
+auth_router=APIRouter(dependencies=[Depends(oauth)])
 
 SECRET_KEY="miniproject"
 ALGORITHM="HS256"
@@ -16,10 +17,12 @@ ACCESS_TOKEN_EXPIRE=1
 
 @router.post("/create_user",tags=["User"])
 async def create_user(user:User):
-    res=user_collection.find({},{"name":1})
+    res=user_collection.find({},{"name":1,"email":1})
     for u in res:
         if u["name"]==user.dict()["name"]:
             raise HTTPException(status_code=404,detail="User exists")
+        if u["email"]==user.dict()["email"]:
+            raise HTTPException(status_code=404, detail="Two different users cant have same email.")
     user_collection.insert_one(user.dict())
     return user.dict()
 
@@ -34,7 +37,7 @@ async def login(form:OAuth2PasswordRequestForm=Depends()):
 
     return {"access_token":access,"token_type":"bearer"}
 
-@router.get("/current_user",tags=["User"])
+@auth_router.get("/current_user",tags=["User"])
 async def current_user(token:str=Depends(oauth)):
     try:
         payload=jwt.decode(token,SECRET_KEY,algorithms=ALGORITHM)
@@ -47,24 +50,31 @@ async def current_user(token:str=Depends(oauth)):
         raise HTTPException(status_code=404,detail="Invalid token")
 
 
-@router.delete("/delete_user/{name}",tags=["User"])
-async def delete_user(name:str,cur:dict=Depends(current_user)):
+@auth_router.delete("/delete_user/{name}",tags=["User"])
+async def delete_user(name:str):
     try:
         user=user_collection.find_one_and_delete({"name":name})
         return serialise_one(user)
     except TypeError:
         raise HTTPException(status_code=404,detail="Invalid username.")
 
-@router.put("/update_user/{name}",tags=["User"])
-async def update_user(name:str,user:User,cur:dict=Depends(current_user)):
+@auth_router.put("/update_user/{name}",tags=["User"])
+async def update_user(name:str,user:User):
     try:
         user=user_collection.find_one_and_update({"name":name},{"$set":user.dict()})
         return serialise_one(user)
     except TypeError:
         raise HTTPException(status_code=404, detail="Invalid username.")
 
-@router.post("/create_note",tags=["Notes"])
-async def create_note(note:Note,cur:dict=Depends(current_user)):
+@auth_router.get("/get_users",tags=["User"])
+async def get_users():
+    res=[serialise_one(user) for user in user_collection.find()]
+    if not res:
+        raise HTTPException(status_code=404,detail="Users db is empty")
+    return res
+
+@auth_router.post("/create_note",tags=["Notes"])
+async def create_note(note:Note):
     temp=note.dict()
     temp_note=collection.find_one({"title":temp["title"]})
     if temp_note:
@@ -76,8 +86,8 @@ async def create_note(note:Note,cur:dict=Depends(current_user)):
         return temp
 
 
-@router.get("/get_all_notes",tags=["Notes"])
-async def get_all_notes(cur:dict=Depends(current_user)):
+@auth_router.get("/get_all_notes",tags=["Notes"])
+async def get_all_notes():
     notes=collection.find()
     notes=serialise_many(notes)
     res={}
@@ -87,8 +97,8 @@ async def get_all_notes(cur:dict=Depends(current_user)):
         res[note["title"]]={"_id":note["_id"],"title":note["title"],"tags":note["tags"],"path":note["path"],"content":content["content"]}
     return res
 
-@router.get("/get_notes/{tags}",tags=["Notes"])
-async def get_all_notes_by_tags(tags:str,cur:dict=Depends(current_user)):
+@auth_router.get("/get_notes/{tags}",tags=["Notes"])
+async def get_all_notes_by_tags(tags:str):
     tags=tags.split(",")
     res={}
     notes=[serialise_one(note) for note in collection.find({"tags":{"$in":tags}})]
@@ -100,8 +110,8 @@ async def get_all_notes_by_tags(tags:str,cur:dict=Depends(current_user)):
         raise HTTPException(status_code=404,detail="Invalid tag")
     return res
 
-@router.get("/note/{title}",tags=["Notes"])
-async def get_note_by_title(title:str,cur:dict=Depends(current_user)):
+@auth_router.get("/note/{title}",tags=["Notes"])
+async def get_note_by_title(title:str):
     try:
         note=serialise_one(collection.find_one({"title":title}))
         res={}
@@ -112,8 +122,8 @@ async def get_note_by_title(title:str,cur:dict=Depends(current_user)):
     except TypeError:
         raise HTTPException(status_code=404, detail="Invalid title")
 
-@router.put("/update/{title}",tags=["Notes"])
-async def update_by_title(title:str,note:Note,cur:dict=Depends(current_user)):
+@auth_router.put("/update/{title}",tags=["Notes"])
+async def update_by_title(title:str,note:Note):
     try:
         note=note.dict()
         collection.update_one({"title":title},{"$set":{"title":note["title"],"tags":note["tags"]}})
@@ -127,8 +137,8 @@ async def update_by_title(title:str,note:Note,cur:dict=Depends(current_user)):
     except FileNotFoundError:
         raise HTTPException(status_code=404,detail="Invalid title")
 
-@router.delete("/delete/note/{title}",tags=["Notes"])
-async def delete_note_by_title(title:str,cur:dict=Depends(current_user)):
+@auth_router.delete("/delete/note/{title}",tags=["Notes"])
+async def delete_note_by_title(title:str):
     try:
         collection.delete_one({"title":title})
         j_obj=JSONNote()
