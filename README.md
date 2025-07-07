@@ -1,6 +1,6 @@
 # Mini-Project
 # Simple Notes Manager
-### A Mini Project on Mangaing Personal Notes using Python, MongoDB and FastAPI. we store the Notes in MongoDB database and in JSON files. In order to perform the actions user has to authenticate himself.
+### A Mini Project on Managing  Personal Notes using Python, MongoDB and FastAPI. we store the Notes in MongoDB database and in JSON files. In order to perform the actions user has to authenticate himself.
 
 ## Key Features:-
 ### 1. Routes for-
@@ -12,7 +12,7 @@
 * Getting Notes Using title,Tags.
 * Deleting Note by Title.
 * Updating Note by Title.
-* Restoring Note by Ttitle.
+* Restoring Note by Title.
 ### 2. User Notes are stored in the JSON files.
 
 ## Requirements:-
