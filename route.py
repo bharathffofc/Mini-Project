@@ -1,4 +1,4 @@
-from fastapi import APIRouter,Depends,HTTPException
+from fastapi import APIRouter,Depends,HTTPException,Request
 from model import Note,JSONNote,User
 from connection import collection,user_collection,delete
 from schema import serialise_one,serialise_many
@@ -138,7 +138,7 @@ async def update_by_title(title:str,note:Note):
         raise HTTPException(status_code=404,detail="Invalid title")
 
 @auth_router.delete("/delete/note/{title}",tags=["Notes"])
-async def delete_note_by_title(title:str):
+async def delete_note_by_title(title:str,request:Request):
     try:
         title=title.lower()
         res=collection.find_one_and_delete({"title":title})
@@ -146,7 +146,21 @@ async def delete_note_by_title(title:str):
         res.pop("_id")
         delete.insert_one(res)
         j_obj=JSONNote()
-        path="document deleted from the collection and "+j_obj.delete(title)
-        return path
+        path="document deleted from the collection and "+j_obj.delete(title,request.url.path.split("/")[1])
+        return {"message":path}
     except FileNotFoundError:
         raise HTTPException(status_code=404,detail="Invalid title")
+
+@auth_router.put("/restore/{title}",tags=["Notes"])
+async def restore_note(title:str,request:Request):
+    try:
+        title=title.lower()
+        res=delete.find_one_and_delete({"title":title})
+        res=serialise_one(res)
+        res.pop("_id")
+        collection.insert_one(res)
+        j_obj=JSONNote()
+        path="document deleted from the collection and "+j_obj.delete(title,request.url.path.split("/")[1])
+        return {"message":path}
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Invalid title")

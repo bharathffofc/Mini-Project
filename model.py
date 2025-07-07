@@ -24,7 +24,7 @@ class BaseNote(ABC):
         pass
 
     @abstractmethod
-    def delete(self,note):
+    def delete(self,note,path):
         pass
 
 class JSONNote(BaseNote):
@@ -42,13 +42,21 @@ class JSONNote(BaseNote):
             content=json.load(f)
         return content
 
-    def delete(self,title):
-        full_title="C:/Users/Bharath KA/Documents/Mini-Project/JSON_Notes/"+title+".json"
+    def delete(self,title,path):
+        full_title=""
+        new_title=""
+        if path=="delete":
+            full_title="C:/Users/Bharath KA/Documents/Mini-Project/JSON_Notes/"+title+".json"
+            os.makedirs("C:/Users/Bharath KA/Documents/Mini-Project/Deleted_Notes/", exist_ok=True)
+            new_title = "C:/Users/Bharath KA/Documents/Mini-Project/Deleted_Notes/" + title + ".json"
+        elif path=="restore":
+            full_title="C:/Users/Bharath KA/Documents/Mini-Project/Deleted_Notes/"+title+".json"
+            os.makedirs("C:/Users/Bharath KA/Documents/Mini-Project/JSON_Notes/", exist_ok=True)
+            new_title = "C:/Users/Bharath KA/Documents/Mini-Project/JSON_Notes/" + title + ".json"
         with open(full_title,"r") as f:
             content=json.load(f)
         os.remove(full_title)
-        os.makedirs("C:/Users/Bharath KA/Documents/Mini-Project/Deleted_Notes/", exist_ok=True)
-        new_title="C:/Users/Bharath KA/Documents/Mini-Project/Deleted_Notes/"+title+".json"
         with open(new_title,"w") as f:
             json.dump(content,f,indent=4)
         return f"File removed at {full_title}"
+
