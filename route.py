@@ -1,14 +1,16 @@
-from fastapi import APIRouter,Depends,HTTPException,Request
+from fastapi import APIRouter,Depends,HTTPException,Request,status
 from model import Note,JSONNote,User
 from connection import collection,user_collection,delete
 from schema import serialise_one,serialise_many
 from fastapi.security import OAuth2PasswordRequestForm,OAuth2PasswordBearer
 from jose import jwt,JWTError
 from datetime import datetime,timedelta,UTC
+import os
 
 oauth=OAuth2PasswordBearer(tokenUrl="/token")
 
 router=APIRouter()
+
 auth_router=APIRouter(dependencies=[Depends(oauth)])
 
 SECRET_KEY="mini_project"
@@ -17,22 +19,25 @@ ACCESS_TOKEN_EXPIRE=1
 
 @router.post("/create_user",tags=["User"])
 async def create_user(user:User):
-    res=user_collection.find({},{"name":1,"email":1})
+    res=serialise_many(user_collection.find({},{"name":1,"email":1}))
+    user=user.dict()
+    user["name"]=user["name"].lower()
+    user["email"]=user["email"].lower()
     for u in res:
-        if u["name"].lower()==user.model_dump()["name"].lower():
-            raise HTTPException(status_code=404,detail="User exists")
-        if u["email"].lower()==user.model_dump()["email"].lower():
-            raise HTTPException(status_code=404, detail="Two different users cant have same email.")
-        if user.model_dump()["deleted"]!=0:
-            raise HTTPException(status_code=404,detail="Invalid user data")
-    user_collection.insert_one(user.model_dump())
-    return user.model_dump()
+        if u["name"].lower()==user["name"].lower():
+            raise HTTPException(status_code=400,detail="User exists")
+        if u["email"].lower()==user["email"].lower():
+            raise HTTPException(status_code=400, detail="Two different users cant have same email.")
+        if user["deleted"]!=0:
+            raise HTTPException(status_code=400,detail="Invalid user data")
+    user_collection.insert_one(user)
+    return serialise_one(user)
 
 @router.post("/token",tags=["User"])
 async def login(form:OAuth2PasswordRequestForm=Depends()):
     user=user_collection.find_one({"name":form.username})
     if  not user or user["password"]!=form.password or user["deleted"]==1:
-        raise HTTPException(status_code=401,detail="Invalid credential or user not exists.")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="Invalid credential or user not exists.")
 
     data={"sub":form.username,"exp":datetime.now(UTC)+timedelta(days=ACCESS_TOKEN_EXPIRE)}
     access=jwt.encode(data,SECRET_KEY,algorithm=ALGORITHM)
@@ -54,19 +59,30 @@ async def current_user(token:str=Depends(oauth)):
 
 @router.delete("/delete_user",tags=["User"])
 async def delete_user(cur:dict=Depends(current_user)):
-    user=user_collection.find_one_and_update({"name":cur["name"]},{"$set":{"deleted":1}})
-    return serialise_one(user)
+    user_collection.update_one({"name":cur["name"]},{"$set":{"deleted":1}})
+    return serialise_one(user_collection.find_one({"name":cur["name"]}))
 
 @router.put("/update_user",tags=["User"])
 async def update_user(user:User,cur:dict=Depends(current_user)):
-    user=user_collection.find_one_and_update({"name":cur["name"]},{"$set":user.model_dump()})
-    return serialise_one(user)
+    user=user.dict()
+    user["name"]=user["name"].lower()
+    user["email"]=user["email"].lower()
+    exist=user_collection.find_one({"name":user["name"]})
+    if exist:
+        raise HTTPException(status_code=400,detail="User exists")
+    if user["deleted"]!=0:
+        raise HTTPException(status_code=400,detail="Invalid data")
+    user_collection.update_one({"name":cur["name"]},{"$set":user})
+    return serialise_one(user_collection.find_one({"name":user["name"]}))
 
 @router.put("/restore/user/{name}",tags=["User"])
 async def restore_user(name:str):
-    user=user_collection.find_one_and_update({"name":name},{"$set":{"deleted":0}})
-    return serialise_one(user)
-
+    name=name.lower()
+    try:
+        user_collection.update_one({"name":name},{"$set":{"deleted":0}})
+        return serialise_one(user_collection.find_one({"name":name}))
+    except TypeError:
+        raise HTTPException(status_code=400,detail="Invalid Title")
 @auth_router.get("/get_users",tags=["User"])
 async def get_users():
     res=[serialise_one(user) for user in user_collection.find({"deleted":0},{"name":1})]
@@ -79,9 +95,10 @@ async def create_note(note:Note):
     temp=note.model_dump()
     temp["title"]=temp["title"].lower()
     temp["tags"]=[var.lower() for var in temp["tags"]]
+    temp["content"]=temp["content"].lower()
     temp_note=collection.find_one({"title":temp["title"]})
     if temp_note:
-        raise HTTPException(status_code=404,detail="Note already exists.")
+        raise HTTPException(status_code=400,detail="Note already exists.")
     else:
         j_note=JSONNote()
         path=j_note.save(temp)
@@ -111,7 +128,7 @@ async def get_all_notes_by_tags(tags:str):
         content=j_note.load(note["title"])
         res[note["title"]]={"_id":note["_id"],"title":note["title"],"tags":note["tags"],"path":note["path"],"content":content["content"]}
     if res=={}:
-        raise HTTPException(status_code=404,detail="Invalid tag")
+        raise HTTPException(status_code=400,detail="Invalid tag")
     return res
 
 @auth_router.get("/note/{title}",tags=["Notes"])
@@ -125,23 +142,24 @@ async def get_note_by_title(title:str):
         res[title]={"_id":note["_id"],"title":note["title"],"tags":note["tags"],"path":note["path"],"content":content["content"]}
         return res
     except TypeError:
-        raise HTTPException(status_code=404, detail="Invalid title")
+        raise HTTPException(status_code=400, detail="Invalid title")
 
 @auth_router.put("/update/{title}",tags=["Notes"])
 async def update_by_title(title:str,note:Note):
     try:
         title=title.lower()
         note=note.model_dump()
-        collection.update_one({"title":title},{"$set":{"title":note["title"],"tags":note["tags"]}})
+        note["title"] = note["title"].lower()
+        note["tags"] = [var.lower() for var in note["tags"]]
+        note["content"]=note["content"].lower()
+        r="C:/Users/Bharath KA/Documents/Mini-Project/JSON_Notes/"+title+".json"
+        os.remove(r)
         j_obj=JSONNote()
-        content=j_obj.load(title)
-        content["title"]=note["title"]
-        content["tags"]=note["tags"]
-        content["content"]=note["content"]
-        path=j_obj.save(content)
+        path=j_obj.save(note)
+        collection.update_one({"title": title}, {"$set": {"title": note["title"], "tags": note["tags"],"path":path}})
         return {f"message":f"content updated in mongoDB and in Path {path}"}
     except FileNotFoundError:
-        raise HTTPException(status_code=404,detail="Invalid title")
+        raise HTTPException(status_code=400,detail="Invalid title")
 
 @auth_router.delete("/delete/note/{title}",tags=["Notes"])
 async def delete_note_by_title(title:str,request:Request):
@@ -155,7 +173,9 @@ async def delete_note_by_title(title:str,request:Request):
         path="document deleted from the collection and "+j_obj.delete(title,request.url.path.split("/")[1])
         return {"message":path}
     except FileNotFoundError:
-        raise HTTPException(status_code=404,detail="Invalid title")
+        raise HTTPException(status_code=400,detail="Invalid title")
+    except TypeError:
+        raise HTTPException(status_code=400,detail="Invalid title")
 
 @auth_router.put("/restore/{title}",tags=["Notes"])
 async def restore_note(title:str,request:Request):
@@ -169,4 +189,10 @@ async def restore_note(title:str,request:Request):
         path="document deleted from the collection and "+j_obj.delete(title,request.url.path.split("/")[1])
         return {"message":path}
     except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="Invalid title")
+        raise HTTPException(status_code=400, detail="Invalid title")
+    except TypeError:
+        raise HTTPException(status_code=400,detail="Invalid title")
+
+
+
+
