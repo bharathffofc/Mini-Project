@@ -7,7 +7,7 @@ class User(BaseModel):
     name:str
     password:str
     email:EmailStr
-    deleted:int=Field(default=False)
+    deleted:int=Field(default=0)
 
 class Note(BaseModel):
     title:str

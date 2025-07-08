@@ -23,14 +23,16 @@ async def create_user(user:User):
             raise HTTPException(status_code=404,detail="User exists")
         if u["email"].lower()==user.model_dump()["email"].lower():
             raise HTTPException(status_code=404, detail="Two different users cant have same email.")
+        if user.model_dump()["deleted"]!=0:
+            raise HTTPException(status_code=404,detail="Invalid user data")
     user_collection.insert_one(user.model_dump())
     return user.model_dump()
 
 @router.post("/token",tags=["User"])
 async def login(form:OAuth2PasswordRequestForm=Depends()):
     user=user_collection.find_one({"name":form.username})
-    if not user or user["password"]!=form.password:
-        raise HTTPException(status_code=404,detail="Invalid credential or user not exists.")
+    if  not user or user["password"]!=form.password or user["deleted"]==1:
+        raise HTTPException(status_code=401,detail="Invalid credential or user not exists.")
 
     data={"sub":form.username,"exp":datetime.now(UTC)+timedelta(days=ACCESS_TOKEN_EXPIRE)}
     access=jwt.encode(data,SECRET_KEY,algorithm=ALGORITHM)
@@ -60,6 +62,11 @@ async def update_user(user:User,cur:dict=Depends(current_user)):
     user=user_collection.find_one_and_update({"name":cur["name"]},{"$set":user.model_dump()})
     return serialise_one(user)
 
+@router.put("/restore/user/{name}",tags=["User"])
+async def restore_user(name:str):
+    user=user_collection.find_one_and_update({"name":name},{"$set":{"deleted":0}})
+    return serialise_one(user)
+
 @auth_router.get("/get_users",tags=["User"])
 async def get_users():
     res=[serialise_one(user) for user in user_collection.find({"deleted":0},{"name":1})]
@@ -72,7 +79,6 @@ async def create_note(note:Note):
     temp=note.model_dump()
     temp["title"]=temp["title"].lower()
     temp["tags"]=[var.lower() for var in temp["tags"]]
-    print(temp)
     temp_note=collection.find_one({"title":temp["title"]})
     if temp_note:
         raise HTTPException(status_code=404,detail="Note already exists.")
