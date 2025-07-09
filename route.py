@@ -78,11 +78,11 @@ async def update_user(user:User,cur:dict=Depends(current_user)):
 @router.put("/restore/user/{name}",tags=["User"])
 async def restore_user(name:str):
     name=name.lower()
-    try:
-        user_collection.update_one({"name":name},{"$set":{"deleted":0}})
-        return serialise_one(user_collection.find_one({"name":name}))
-    except TypeError:
-        raise HTTPException(status_code=400,detail="Invalid Title")
+    res=user_collection.find_one_and_update({"name":name},{"$set":{"deleted":0}})
+    if res is None:
+        raise HTTPException(status_code=400,detail="Invalid title")
+    return serialise_one(user_collection.find_one({"name":name}))
+
 @auth_router.get("/get_users",tags=["User"])
 async def get_users():
     res=[serialise_one(user) for user in user_collection.find({"deleted":0},{"name":1})]
@@ -133,65 +133,61 @@ async def get_all_notes_by_tags(tags:str):
 
 @auth_router.get("/note/{title}",tags=["Notes"])
 async def get_note_by_title(title:str):
-    try:
-        title=title.lower()
-        note=serialise_one(collection.find_one({"title":title}))
-        res={}
-        j_note=JSONNote()
-        content=j_note.load(title)
-        res[title]={"_id":note["_id"],"title":note["title"],"tags":note["tags"],"path":note["path"],"content":content["content"]}
-        return res
-    except TypeError:
-        raise HTTPException(status_code=400, detail="Invalid title")
+    title=title.lower()
+    note=collection.find_one({"title":title})
+    if note is None:
+        raise HTTPException(status_code=400,detail="Invalid title")
+    note=serialise_one(note)
+    res={}
+    j_note=JSONNote()
+    content=j_note.load(title)
+    res[title]={"_id":note["_id"],"title":note["title"],"tags":note["tags"],"path":note["path"],"content":content["content"]}
+    return res
+
 
 @auth_router.put("/update/{title}",tags=["Notes"])
 async def update_by_title(title:str,note:Note):
-    try:
-        title=title.lower()
-        note=note.model_dump()
-        note["title"] = note["title"].lower()
-        note["tags"] = [var.lower() for var in note["tags"]]
-        note["content"]=note["content"].lower()
-        r="C:/Users/Bharath KA/Documents/Mini-Project/JSON_Notes/"+title+".json"
-        os.remove(r)
-        j_obj=JSONNote()
-        path=j_obj.save(note)
-        collection.update_one({"title": title}, {"$set": {"title": note["title"], "tags": note["tags"],"path":path}})
-        return {f"message":f"content updated in mongoDB and in Path {path}"}
-    except FileNotFoundError:
-        raise HTTPException(status_code=400,detail="Invalid title")
+    title=title.lower()
+    res=collection.find_one({"title":title})
+    if res is None:
+        raise HTTPException(status_code=400, detail="Invalid title")
+    note=note.model_dump()
+    note["title"] = note["title"].lower()
+    note["tags"] = [var.lower() for var in note["tags"]]
+    note["content"]=note["content"].lower()
+    r="C:/Users/Bharath KA/Documents/Mini-Project/JSON_Notes/"+title+".json"
+    os.remove(r)
+    j_obj=JSONNote()
+    path=j_obj.save(note)
+    collection.update_one({"title": title}, {"$set": {"title": note["title"], "tags": note["tags"],"path":path}})
+    return {f"message":f"content updated in mongoDB and in Path {path}"}
 
 @auth_router.delete("/delete/note/{title}",tags=["Notes"])
 async def delete_note_by_title(title:str,request:Request):
-    try:
-        title=title.lower()
-        res=collection.find_one_and_delete({"title":title})
-        res=serialise_one(res)
-        res.pop("_id")
-        delete.insert_one(res)
-        j_obj=JSONNote()
-        path="document deleted from the collection and "+j_obj.delete(title,request.url.path.split("/")[1])
-        return {"message":path}
-    except FileNotFoundError:
+    title=title.lower()
+    res=collection.find_one_and_delete({"title":title})
+    if res is None:
         raise HTTPException(status_code=400,detail="Invalid title")
-    except TypeError:
-        raise HTTPException(status_code=400,detail="Invalid title")
+    res=serialise_one(res)
+    res.pop("_id")
+    delete.insert_one(res)
+    j_obj=JSONNote()
+    path="document deleted from the collection and "+j_obj.delete(title,request.url.path.split("/")[1])
+    return {"message":path}
 
 @auth_router.put("/restore/{title}",tags=["Notes"])
 async def restore_note(title:str,request:Request):
-    try:
-        title=title.lower()
-        res=delete.find_one_and_delete({"title":title})
-        res=serialise_one(res)
-        res.pop("_id")
-        collection.insert_one(res)
-        j_obj=JSONNote()
-        path="document deleted from the collection and "+j_obj.delete(title,request.url.path.split("/")[1])
-        return {"message":path}
-    except FileNotFoundError:
+    title=title.lower()
+    res=delete.find_one_and_delete({"title":title})
+    if res is None:
         raise HTTPException(status_code=400, detail="Invalid title")
-    except TypeError:
-        raise HTTPException(status_code=400,detail="Invalid title")
+    res=serialise_one(res)
+    res.pop("_id")
+    collection.insert_one(res)
+    j_obj=JSONNote()
+    path="document deleted from the collection and "+j_obj.delete(title,request.url.path.split("/")[1])
+    return {"message":path}
+
 
 
 
