@@ -123,12 +123,12 @@ async def get_all_notes_by_tags(tags:str):
     tags=tags.split(",")
     res={}
     notes=[serialise_one(note) for note in collection.find({"tags":{"$in":tags}})]
+    if not notes:
+        raise HTTPException(status_code=400, detail="Invalid tag")
     for note in notes:
         j_note=JSONNote()
         content=j_note.load(note["title"])
         res[note["title"]]={"_id":note["_id"],"title":note["title"],"tags":note["tags"],"path":note["path"],"content":content["content"]}
-    if res=={}:
-        raise HTTPException(status_code=400,detail="Invalid tag")
     return res
 
 @auth_router.get("/note/{title}",tags=["Notes"])
@@ -147,11 +147,14 @@ async def get_note_by_title(title:str):
 
 @auth_router.put("/update/{title}",tags=["Notes"])
 async def update_by_title(title:str,note:Note):
+    note=note.model_dump()
     title=title.lower()
     res=collection.find_one({"title":title})
     if res is None:
         raise HTTPException(status_code=400, detail="Invalid title")
-    note=note.model_dump()
+    ans=collection.find_one({"title":note["title"]})
+    if ans:
+        raise HTTPException(status_code=400,detail="Note already exists.")
     note["title"] = note["title"].lower()
     note["tags"] = [var.lower() for var in note["tags"]]
     note["content"]=note["content"].lower()
