@@ -152,7 +152,7 @@ async def update_by_title(title:str,note:Note):
     res=collection.find_one({"title":title})
     if res is None:
         raise HTTPException(status_code=400, detail="Invalid title")
-    ans=collection.find_one({"title":note["title"]})
+    ans=collection.find_one({"title":note["title"].lower()})
     if ans:
         raise HTTPException(status_code=400,detail="Note already exists.")
     note["title"] = note["title"].lower()

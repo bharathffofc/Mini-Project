@@ -1,3 +1,7 @@
-pymongo
-fastapi
-uvicorn
+pymongo~=4.13.2
+python-jose~=3.5.0
+fastapi~=0.115.14
+pydantic~=2.11.7
+email_validator~=2.2.0
+uvicorn~=0.35.0
+python-multipart~=0.0.20
