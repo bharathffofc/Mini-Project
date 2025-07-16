@@ -1,0 +1,12 @@
+Project: Simple Notes Manager API Description: (Mini project title)
+Build a REST API using FastAPI to manage personal notes. Each note has a title, content, and tags.
+Notes are stored as JSON files on disk, while metadata (title, tags, file path) is stored in MongoDB.
+
+Requirements:
+ - Use FastAPI for CRUD endpoints: create, read all, read one, update, delete.
+ - Use an abstract base class 'BaseNote' with save(), load(), delete() methods.
+ - Implement a JSONNote class that uses file handling.
+ - Use custom exceptions for missing/invalid notes.
+ - Use list comprehension to filter notes by tag.
+ - Use Git for version control
+ -add a recycle bin-like option to bring back deleted notes if needed
